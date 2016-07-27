@@ -5,6 +5,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"io/ioutil"
 	"log"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -49,7 +50,8 @@ func Entry(fctx *fasthttp.RequestCtx) {
 		Params:     map[string]string{},
 	}
 	if err := globalRouter.Dispatch(ctx, rawPath, method); err != nil {
-		panic(fmt.Errorf("dispatch handler failed:", err))
+		//panic(fmt.Errorf("dispatch handler failed:", err))
+		log.Println(err)
 	}
 }
 
@@ -71,13 +73,14 @@ func (r *Router) Dispatch(ctx *Context, rawPath, method string) error {
 	}
 
 	if failed {
-		log.Println("router map:", r.routerMap)
+		log.Println("path =", rawPath, "method =", method) //, "\nrouter map:", r.routerMap)
 		return fmt.Errorf("no router found!")
 	}
 	return nil
 }
 
 func (r *Router) AddRouter(pattern string, handler HandlerFunc) *RouterHandler {
+	log.Println("add router:", pattern)
 	submatch := routerPattern.FindAllStringSubmatch(pattern, -1)
 	var newPatternStr string
 	if submatch == nil {
@@ -85,7 +88,6 @@ func (r *Router) AddRouter(pattern string, handler HandlerFunc) *RouterHandler {
 	} else {
 		newPatternStr = "^" + routerPattern.ReplaceAllString(pattern, `([\w\d_]+)`) + `/?`
 	}
-	log.Println("new pattern string:", newPatternStr)
 	newPattern := regexp.MustCompile(newPatternStr)
 	rh := &RouterHandler{
 		handlerFunc: handler,
@@ -112,7 +114,7 @@ func (r *Router) AddStatic(src string) {
 		// matched:
 		real_path := string(ctx.Path())
 		seg := strings.Split(real_path, "/")
-		src_path := src + "/" + strings.Join(seg[1:], "/")
+		src_path := src + "/" + strings.Join(seg[2:], "/")
 		file_bytes, err := ioutil.ReadFile(src_path)
 		if err != nil {
 			log.Fatalf("read file %s error: %v\n", src_path, err)
@@ -120,6 +122,15 @@ func (r *Router) AddStatic(src string) {
 		_, err = ctx.Write(file_bytes)
 		if err != nil {
 			log.Fatalf("send file %s error: %v\n", dest, err)
+		}
+		ext_name := strings.ToLower(path.Ext(real_path))
+		switch ext_name {
+		case ".js":
+			ctx.SetContentType("application/x-javascript; charset=utf-8")
+		case ".css":
+			ctx.SetContentType("text/css; charset=utf-8")
+		default:
+			log.Printf("extention %s not recognized, use text/plain\n", ext_name)
 		}
 	})
 }
