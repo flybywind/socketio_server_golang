@@ -2,9 +2,9 @@ package router
 
 import (
 	"fmt"
-	"github.com/valyala/fasthttp"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"path"
 	"regexp"
 	"strings"
@@ -35,20 +35,36 @@ var globalRouter Router = Router{
 var routerPattern *regexp.Regexp = regexp.MustCompile(`:([\w\d_]+)+`)
 
 type Context struct {
-	*fasthttp.RequestCtx
+	http.ResponseWriter
+	*http.Request
 	Params map[string]string
+}
+
+func (c *Context) Method() string {
+	return strings.ToLower(c.Request.Method)
+}
+func (c *Context) Path() string {
+	return c.Request.URL.Path
+}
+func (c *Context) Write(p []byte) (n int, err error) {
+	return c.ResponseWriter.Write(p)
+}
+func (c *Context) SetContentType(ct string) {
+	c.ResponseWriter.Header().Set("Content-Type", ct)
 }
 
 func GetRouter() *Router {
 	return &globalRouter
 }
-func Entry(fctx *fasthttp.RequestCtx) {
-	rawPath := string(fctx.Path())
-	method := strings.ToLower(string(fctx.Method()))
+
+type Entry struct{}
+
+func (e Entry) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	ctx := &Context{
-		RequestCtx: fctx,
-		Params:     map[string]string{},
+		resp, req, map[string]string{},
 	}
+	rawPath := ctx.Path()
+	method := ctx.Method()
 	if err := globalRouter.Dispatch(ctx, rawPath, method); err != nil {
 		//panic(fmt.Errorf("dispatch handler failed:", err))
 		log.Println(err)
@@ -112,7 +128,7 @@ func (r *Router) AddStatic(src string) {
 	dest := "/" + src_seg[src_len-1] + "/:subpath"
 	r.AddRouterMethod(dest, "get", func(ctx *Context) {
 		// matched:
-		real_path := string(ctx.Path())
+		real_path := ctx.Path()
 		seg := strings.Split(real_path, "/")
 		src_path := src + "/" + strings.Join(seg[2:], "/")
 		file_bytes, err := ioutil.ReadFile(src_path)
@@ -120,6 +136,7 @@ func (r *Router) AddStatic(src string) {
 			log.Fatalf("read file %s error: %v\n", src_path, err)
 		}
 		_, err = ctx.Write(file_bytes)
+
 		if err != nil {
 			log.Fatalf("send file %s error: %v\n", dest, err)
 		}
