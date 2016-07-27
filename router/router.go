@@ -3,6 +3,7 @@ package router
 import (
 	"fmt"
 	"github.com/valyala/fasthttp"
+	"io/ioutil"
 	"log"
 	"regexp"
 	"strings"
@@ -40,7 +41,7 @@ type Context struct {
 func GetRouter() *Router {
 	return &globalRouter
 }
-func Server(fctx *fasthttp.RequestCtx) {
+func Entry(fctx *fasthttp.RequestCtx) {
 	rawPath := string(fctx.Path())
 	method := strings.ToLower(string(fctx.Method()))
 	ctx := &Context{
@@ -59,8 +60,9 @@ func (r *Router) Dispatch(ctx *Context, rawPath, method string) error {
 			m := reg.FindAllStringSubmatch(rawPath, -1)
 			if m != nil {
 				failed = false
-				for index, match := range m {
-					ctx.Params[handler.paramIndex[index]] = match[1]
+				submatch_len := len(m[0])
+				for i := 1; i < submatch_len; i++ {
+					ctx.Params[handler.paramIndex[i-1]] = m[0][i]
 				}
 				handler.handlerFunc(ctx)
 				return nil
@@ -77,11 +79,12 @@ func (r *Router) Dispatch(ctx *Context, rawPath, method string) error {
 
 func (r *Router) AddRouter(pattern string, handler HandlerFunc) *RouterHandler {
 	submatch := routerPattern.FindAllStringSubmatch(pattern, -1)
+	var newPatternStr string
 	if submatch == nil {
-		panic(fmt.Errorf("Add Router failed as pattern not supported: " + pattern))
+		newPatternStr = "^" + pattern + "$"
+	} else {
+		newPatternStr = "^" + routerPattern.ReplaceAllString(pattern, `([\w\d_]+)`) + `/?`
 	}
-
-	newPatternStr := routerPattern.ReplaceAllString(pattern, `([\w\d_]+)`)
 	log.Println("new pattern string:", newPatternStr)
 	newPattern := regexp.MustCompile(newPatternStr)
 	rh := &RouterHandler{
@@ -99,4 +102,24 @@ func (r *Router) AddRouterMethod(pattern string, method string, handler HandlerF
 	rh := r.AddRouter(pattern, handler)
 	rh.methodName = strings.ToLower(method)
 	return rh
+}
+
+func (r *Router) AddStatic(src string) {
+	src_seg := strings.Split(src, "/")
+	src_len := len(src_seg)
+	dest := "/" + src_seg[src_len-1] + "/:subpath"
+	r.AddRouterMethod(dest, "get", func(ctx *Context) {
+		// matched:
+		real_path := string(ctx.Path())
+		seg := strings.Split(real_path, "/")
+		src_path := src + "/" + strings.Join(seg[1:], "/")
+		file_bytes, err := ioutil.ReadFile(src_path)
+		if err != nil {
+			log.Fatalf("read file %s error: %v\n", src_path, err)
+		}
+		_, err = ctx.Write(file_bytes)
+		if err != nil {
+			log.Fatalf("send file %s error: %v\n", dest, err)
+		}
+	})
 }

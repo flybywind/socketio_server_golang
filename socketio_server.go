@@ -2,13 +2,16 @@ package main
 
 import (
 	"flag"
-	"github.com/googollee/go-socket.io"
+	//"github.com/googollee/go-socket.io"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/reuseport"
 	"log"
 	"net"
+	"os"
 	"os/exec"
 	"runtime"
+	"socketio_server/handler"
+	"socketio_server/router"
 )
 
 func init() {
@@ -28,8 +31,13 @@ func main() {
 		flag.Usage()
 		log.Fatalln()
 	}
+	r := router.GetRouter()
+	r.AddRouter("/", handler.Index)
+	r.AddRouter("/chat_room/:room.:user", handler.Rooms)
+	r.AddStatic("static/javascript")
+	r.AddStatic("static/stylesheets")
 	fasthttpServer := fasthttp.Server{
-		Handler: mainHandler,
+		Handler: router.Entry,
 		Name:    "test-socketio",
 	}
 	ln := GetListener()
@@ -37,10 +45,6 @@ func main() {
 	if err := fasthttpServer.Serve(ln); err != nil {
 		log.Fatalln("start listenning failed:", err)
 	}
-}
-
-func mainHandler(ctx *fasthttp.RequestCtx) {
-
 }
 
 func GetListener() net.Listener {
