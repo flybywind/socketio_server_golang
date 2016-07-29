@@ -33,8 +33,29 @@ func main() {
 		Handler: router.Entry{},
 	}
 	socket := AddSocketIO(r, nil)
-	ns := socket.Of("/chat_room")
-	ns.On("connection", func(so socketio.Socket) {
+
+	socket.On("connection", func(so socketio.Socket) {
+		log.Println("server connection from client!") // 收到！
+		ns := socket.Of("/chat_room")
+		so.On("join_room", func(data string) {
+			log.Println("server join_room!") // 没有收到
+			so.Emit("user_entered", data)
+		})
+		so.On("message", func(message string) {
+			log.Println("server receive message:", message)
+		})
+		ns.On("join_room", func(data string) {
+			log.Println("ns receive join room request:", data)
+			so.Emit("user_entered", data)
+		})
+		ns.On("message", func(message string) {
+			log.Println("ns receive message:", message)
+		})
+
+	})
+
+	/*ns.On("connection", func(so socketio.Socket) {
+		log.Println("namespace connection from client!") // 没有收到
 		so.On("join_room", func(data string) {
 			log.Println("receive join room request:", data)
 			so.Emit("user_entered", data)
@@ -42,7 +63,7 @@ func main() {
 		so.On("message", func(message string) {
 			log.Println("receive message:", message)
 		})
-	})
+	})*/
 
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalln(err)

@@ -129,6 +129,16 @@ func (r *Router) AddStatic(src string) {
 	r.AddRouterMethod(dest, "get", func(ctx *Context) {
 		// matched:
 		real_path := ctx.Path()
+		ext_name := strings.ToLower(path.Ext(real_path))
+		switch ext_name {
+		case ".js":
+			ctx.SetContentType("application/x-javascript; charset=utf-8")
+		case ".css":
+			ctx.SetContentType("text/css; charset=utf-8")
+		default:
+			log.Printf("extention %s not recognized, use text/plain\n", ext_name)
+		}
+
 		seg := strings.Split(real_path, "/")
 		src_path := src + "/" + strings.Join(seg[2:], "/")
 		file_bytes, err := ioutil.ReadFile(src_path)
@@ -139,15 +149,6 @@ func (r *Router) AddStatic(src string) {
 
 		if err != nil {
 			log.Fatalf("send file %s error: %v\n", dest, err)
-		}
-		ext_name := strings.ToLower(path.Ext(real_path))
-		switch ext_name {
-		case ".js":
-			ctx.SetContentType("application/x-javascript; charset=utf-8")
-		case ".css":
-			ctx.SetContentType("text/css; charset=utf-8")
-		default:
-			log.Printf("extention %s not recognized, use text/plain\n", ext_name)
 		}
 	})
 }
