@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"github.com/googollee/go-socket.io"
 	"log"
 	"net/http"
 	"socketio_server/handler"
@@ -32,7 +31,6 @@ func main() {
 		Addr:    listenAddr,
 		Handler: router.Entry{},
 	}
-	socket := AddSocketIO(r, nil)
 
 	socket.On("connection", func(so socketio.Socket) {
 		log.Println("server connection from client!") // 收到！
@@ -68,17 +66,4 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalln(err)
 	}
-}
-
-func AddSocketIO(r *router.Router, transportName []string) *socketio.Server {
-	server, err := socketio.NewServer(transportName)
-	if err != nil {
-		log.Println("start socketio failed:", err)
-		return nil
-	}
-
-	r.AddRouter("/socket.io/", func(ctx *router.Context) {
-		server.ServeHTTP(ctx.ResponseWriter, ctx.Request)
-	})
-	return server
 }
