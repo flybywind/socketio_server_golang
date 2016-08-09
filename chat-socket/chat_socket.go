@@ -7,7 +7,6 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -171,8 +170,8 @@ func (c *ChatConn) waitMessage() {
 			case NormalMsg:
 				c.BroadCast(msg)
 			case EventMsg:
-				cmd := strings.ToLower(msg.EventName)
-				if h, ok := c.event_handlers[cmd]; !ok {
+				cmd := msg.EventName
+				if h, ok := c.event_handlers[cmd]; ok {
 					h(c, &msg)
 				} else {
 					err = fmt.Errorf("event: %s not registered", cmd)
@@ -182,11 +181,12 @@ func (c *ChatConn) waitMessage() {
 				}
 				c.Emit(msg)
 			}
+		} else {
+			break
 		}
 	}
 }
 func (c *ChatConn) On(event_name string, handler func(*ChatConn, *Msg)) {
-	event_name = strings.ToLower(event_name)
 	c.event_handlers[event_name] = handler
 }
 
