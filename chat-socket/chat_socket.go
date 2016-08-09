@@ -17,7 +17,6 @@ func init() {
 
 type Msg struct {
 	Content,
-	RoomName,
 	Token,
 	Type,
 	EventName string
@@ -29,44 +28,46 @@ const (
 	EventMsg  = "9"
 )
 
-type chatId string
-type roomId string
+type ChatId string
+type RoomId string
 
 var (
 	WriteWaitSec        = 10 * time.Second
-	rooms               = make(map[roomId]*roomSocket)
-	RoomNotExists       = func(room string) error { return fmt.Errorf("room [%s] not exists", room) }
-	JoinRoomWithoutAuth = func(room string) error { return fmt.Errorf("invalid to join room: %s", room) }
+	rooms               = make(map[RoomId]*roomSocket)
+	RoomNotExists       = func(room RoomId) error { return fmt.Errorf("room [%s] not exists", room) }
+	JoinRoomWithoutAuth = func(room RoomId) error { return fmt.Errorf("invalid to join room: %s", room) }
 )
 
 type roomSocket struct {
 	token   string
-	name    roomId
-	members map[roomId]*ChatConn
-	msgbox  map[chatId]time.Time
+	name    RoomId
+	members map[ChatId]*ChatConn
+	msgbox  map[ChatId]time.Time
 }
 type ChatConn struct {
 	con            *websocket.Conn
-	name           chatId
-	belongRoom     roomId
+	name           ChatId
+	belongRoom     RoomId
 	ownRoom        bool
 	leaveRoom      bool
 	event_handlers map[string]func(*ChatConn, *Msg)
 }
 
-func createRoom(name roomId, token string) (*roomSocket, error) {
+func createRoom(name RoomId, token string) (*roomSocket, error) {
 	room, exists := rooms[name]
 	if exists {
 		return nil, fmt.Errorf("room [%s] exists", name)
 	}
 	room = &roomSocket{
-		name, token, []*ChatConn{},
+		token, name,
+		map[ChatId]*ChatConn{},
+		map[ChatId]time.Time{},
 	}
 
 	rooms[name] = room
 	return room, nil
 }
-func findRoom(name roomId) *roomSocket {
+func findRoom(name RoomId) *roomSocket {
 	room, exists := rooms[name]
 	if exists {
 		return room
@@ -75,7 +76,7 @@ func findRoom(name roomId) *roomSocket {
 	}
 }
 
-func (r *roomSocket) broadCast(fromChat chatId, msg Msg) error {
+func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 	buf := bytes.NewBuffer(nil)
 	if err := json.NewEncoder(buf).Encode(msg); err == nil {
 		for _, conn := range r.members {
@@ -107,7 +108,7 @@ func (r *roomSocket) broadCast(fromChat chatId, msg Msg) error {
 
 func (r *roomSocket) addConn(c *ChatConn) {
 	if conn, existsbefore := r.members[c.name]; existsbefore {
-		c.ownRoom = conn.belongRoom
+		c.ownRoom = conn.ownRoom
 		// TODO: retreive older messages in msgbox
 		delete(r.msgbox, c.name)
 	}
@@ -115,7 +116,7 @@ func (r *roomSocket) addConn(c *ChatConn) {
 	r.members[c.name] = c
 }
 
-func (c *ChatConn) Name() chatId {
+func (c *ChatConn) Name() ChatId {
 	return c.name
 }
 func (c *ChatConn) BroadCast(msg Msg) error {
@@ -132,10 +133,10 @@ func (c *ChatConn) Active() {
 	c.con.SetReadDeadline(time.Time{})
 }
 
-func (c *ChatConn) SetName(name chatId) {
+func (c *ChatConn) SetName(name ChatId) {
 	c.name = name
 }
-func (c *ChatConn) JoinRoom(room roomId, token string) error {
+func (c *ChatConn) JoinRoom(room RoomId, token string) error {
 	roomSocket := findRoom(room)
 
 	if roomSocket != nil {
@@ -219,7 +220,7 @@ func NewChatConn(w http.ResponseWriter, r *http.Request) (chat *ChatConn, e erro
 		return nil, err
 	}
 	name := ws.Subprotocol()
-	chat = &ChatConn{ws, name, "", false, false, map[string]func(*ChatConn, *Msg){}}
+	chat = &ChatConn{ws, ChatId(name), "", false, false, map[string]func(*ChatConn, *Msg){}}
 	chat.Active()
 	chat.Emit(Msg{
 		Type:      EventMsg,

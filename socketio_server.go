@@ -24,7 +24,7 @@ func main() {
 	r := router.GetRouter()
 	r.AddRouterMethod("/", "get", handler.Index)
 	r.AddRouterMethod("/chat_room/:room.:user", "get", handler.Rooms)
-	r.AddRouterMethod("/chat_room/:room.:user?ws", "get", handler.Chat)
+	r.AddRouterMethod("/ws/", "get", handler.Chat)
 	r.AddStatic("static/javascripts")
 	r.AddStatic("static/stylesheets")
 	server := http.Server{
