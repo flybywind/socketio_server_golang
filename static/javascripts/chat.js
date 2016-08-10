@@ -25,7 +25,12 @@ Msg.prototype.parseJson = function(str) {
 
 function ChatSocket(host) {
   this.ws = new WebSocket("ws://" + host + "/ws/");
-
+  this.own_evt = {
+    "open": 1,
+    "close": 1,
+    "error": 1
+  };
+  this.user_evt_handler = {};
 }
 ChatSocket.prototype.isFunction = function(f) {
   return (typeof f === "function")
@@ -54,26 +59,23 @@ ChatSocket.prototype.Emit = function(evt_name, content, callback) {
   }
 }
 ChatSocket.prototype.On = function(evt_name, callback) {
-  var own_evt = {
-    "open": 1,
-    "close": 1,
-    "error": 1
-  };
-  var user_evt_handler = {}
+  var self = this,
+    own_evt = this.own_evt;
   if (own_evt.hasOwnProperty(evt_name)) {
-    this.ws["on" + evt_name] = callback;
+    self.ws["on" + evt_name] = callback;
   } else {
-    if (!this.isFunction(this.ws.onmessage)) {
-      this.ws.onmessage = function(evt) {
-        var msg = new Msg(),
-          f = user_evt_handler[evt_name];
+    if (!self.isFunction(self.ws.onmessage)) {
+      self.ws.onmessage = function(evt) {
+        var msg = new Msg();
         msg.parseJson(evt.data);
+        var f = self.user_evt_handler[msg.EventName];
 
-        if (this.isFunction(f)) {
+        if (self.isFunction(f)) {
           f(msg, evt)
         }
       }
     }
+    self.user_evt_handler[evt_name] = callback;
   }
 }
 ChatSocket.prototype.BroadCast = function(msg) {
@@ -127,7 +129,7 @@ $(function() {
     print("ERROR: " + evt.data);
   })
 
-  window.onunload = function() {
-    chatconn.Emit("Close");
-  }
+  // window.onunload = function() {
+  //   chatconn.Emit("Close");
+  // }
 })

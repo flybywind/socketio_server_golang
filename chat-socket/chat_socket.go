@@ -66,6 +66,7 @@ func createRoom(name RoomId, token string) (*roomSocket, error) {
 	}
 
 	rooms[name] = room
+	log.Println("create room:", name)
 	return room, nil
 }
 func findRoom(name RoomId) *roomSocket {
@@ -84,7 +85,8 @@ func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 			if !conn.leaveRoom {
 				if conn.Name() == fromChat {
 					msg.Type = OwnMsg
-					buf2 := bytes.NewBuffer(make([]byte, buf.Len()))
+					// 如果指定为长度为buf.Len()的[]byte，会出现乱码
+					buf2 := bytes.NewBuffer(nil)
 					err = json.NewEncoder(buf2).Encode(msg)
 					if err != nil {
 						return err
@@ -93,12 +95,14 @@ func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 				} else {
 					return conn.con.WriteMessage(websocket.TextMessage, buf.Bytes())
 				}
+				log.Println("broadcast to user:", conn.Name())
 			} else {
 				now := time.Now()
 				if _, exists := r.msgbox[conn.name]; !exists {
 					r.msgbox[conn.name] = now
 				}
 				// TODO: get db to store messages
+				log.Println("user:", conn.Name(), "has leaved")
 			}
 		}
 	} else {
@@ -143,6 +147,7 @@ func (c *ChatConn) JoinRoom(room RoomId, token string) error {
 		if roomSocket.token == token {
 			roomSocket.addConn(c)
 			c.belongRoom = room
+			log.Println("add chat to existing room:", room, roomSocket.members)
 		} else {
 			// TODO: need owner allowed
 			return JoinRoomWithoutAuth(room)
