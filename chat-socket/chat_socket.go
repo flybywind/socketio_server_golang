@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"regexp"
 	"time"
 )
 
@@ -126,8 +127,7 @@ func (c *ChatConn) BroadCast(msg Msg) error {
 		return RoomNotExists(c.belongRoom)
 	}
 
-	roomSocket.broadCast(c.name, msg)
-	return nil
+	return roomSocket.broadCast(c.name, msg)
 }
 func (c *ChatConn) Active() {
 	c.con.SetReadDeadline(time.Time{})
@@ -167,19 +167,21 @@ func (c *ChatConn) waitMessage() {
 			buf := bytes.NewBuffer(msg_bytes)
 			msg := Msg{}
 			json.NewDecoder(buf).Decode(&msg)
+			cmd := msg.EventName
 			switch msg.Type {
 			case NormalMsg:
-				c.BroadCast(msg)
+				err = c.BroadCast(msg)
 			case EventMsg:
-				cmd := msg.EventName
 				if h, ok := c.event_handlers[cmd]; ok {
 					h(c, &msg)
 				} else {
 					err = fmt.Errorf("event: %s not registered", cmd)
 				}
-				if err != nil {
-					msg.Content = err.Error()
-				}
+			}
+			if err != nil {
+				msg.Type = EventMsg
+				msg.EventName = pascal2underline(cmd) + "_fail"
+				msg.Content = err.Error()
 				c.Emit(msg)
 			}
 		} else {
@@ -200,7 +202,7 @@ func (c *ChatConn) Emit(msg Msg) error {
 			return err
 		}
 	} else {
-		panic("should emit event actions")
+		panic(fmt.Sprintf("should emit event actions: now message type = %s", msg.Type))
 	}
 }
 
@@ -220,8 +222,7 @@ func NewChatConn(w http.ResponseWriter, r *http.Request) (chat *ChatConn, e erro
 	if err != nil {
 		return nil, err
 	}
-	name := ws.Subprotocol()
-	chat = &ChatConn{ws, ChatId(name), "", false, false, map[string]func(*ChatConn, *Msg){}}
+	chat = &ChatConn{ws, ChatId(""), "", false, false, map[string]func(*ChatConn, *Msg){}}
 	chat.Active()
 	chat.Emit(Msg{
 		Type:      EventMsg,
@@ -230,4 +231,14 @@ func NewChatConn(w http.ResponseWriter, r *http.Request) (chat *ChatConn, e erro
 	go chat.waitMessage()
 
 	return chat, nil
+}
+
+var _pascal2underline_patt = regexp.MustCompile("[A-Z]")
+
+func pascal2underline(var_name string) string {
+	new_var_name := _pascal2underline_patt.ReplaceAllString(var_name, "_")
+	if len(new_var_name) < 2 {
+		return new_var_name
+	}
+	return new_var_name[1:]
 }

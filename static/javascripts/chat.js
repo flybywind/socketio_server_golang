@@ -23,8 +23,12 @@ Msg.prototype.parseJson = function(str) {
   }
 }
 
-function ChatSocket(host, user_name) {
-  this.ws = new WebSocket("ws://" + host + "/ws/", user_name);
+function ChatSocket(host) {
+  this.ws = new WebSocket("ws://" + host + "/ws/");
+
+}
+ChatSocket.prototype.isFunction = function(f) {
+  return (typeof f === "function")
 }
 ChatSocket.prototype.Emit = function(evt_name, content, callback) {
   var ws = this.ws;
@@ -51,26 +55,23 @@ ChatSocket.prototype.Emit = function(evt_name, content, callback) {
 }
 ChatSocket.prototype.On = function(evt_name, callback) {
   var own_evt = {
-    "message": 1,
     "open": 1,
     "close": 1,
     "error": 1
   };
-
+  var user_evt_handler = {}
   if (own_evt.hasOwnProperty(evt_name)) {
     this.ws["on" + evt_name] = callback;
   } else {
-    // user defined event:
-    var oldhandler = this.ws.onmessage;
-    this.ws.onmessage = function(evt) {
-      if (typeof oldhandler === "function") {
-        oldhandler(evt);
-      }
-      var msg = new Msg();
-      msg.parseJson(evt.data);
-      if (msg.EventName == evt_name &&
-        typeof callback == "function") {
-        callback(msg, evt);
+    if (!this.isFunction(this.ws.onmessage)) {
+      this.ws.onmessage = function(evt) {
+        var msg = new Msg(),
+          f = user_evt_handler[evt_name];
+        msg.parseJson(evt.data);
+
+        if (this.isFunction(f)) {
+          f(msg, evt)
+        }
       }
     }
   }
@@ -91,18 +92,21 @@ $(function() {
   // 从服务器发过来的事件都是下划线命名法
   // 从客服端发送过去的事件是Pascal命名法
   chatconn.On("connect", function() {
-    chatconn.Emit("JoinRoom", _room);
+    chatconn.Emit("JoinRoom", _room + ":" + _user);
   })
   chatconn.On("enter_room", function(msg) {
-    var divContent = "<div class=serverMessage>";
-    if (msg.Content !== "-") {
-      divContent += (msg.Content + " 进入聊天室…… ");
-    } else {
-      divContent += (msg.Content + " 无法进入聊天室…… ");
-    }
-    domMsg.append(divContent + "</div>");
+    var divContent = "<div class=serverMessage>" +
+      msg.Content + " 进入聊天室…… " +
+      "</div>";
+    domMsg.append(divContent);
   });
 
+  chatconn.On("join_room_fail", function(msg) {
+    var divContent = "<div class=serverMessage>" +
+      msg.Content + " 无法进入聊天室…… " +
+      "</div>";
+    domMsg.append(divContent);
+  })
   $("#send").click(function() {
     var text = $("#message").val();
     chatconn.BroadCast(text);
@@ -116,7 +120,9 @@ $(function() {
     }
     domMsg.append(divContent + msg.Content + "</div>");
   })
-
+  chatconn.On("broad_cast_fail", function(msg) {
+    console.log("broad_cast_fail:" + msg)
+  })
   chatconn.On("error", function(evt) {
     print("ERROR: " + evt.data);
   })
