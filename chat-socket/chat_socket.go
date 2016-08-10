@@ -24,6 +24,7 @@ type Msg struct {
 const (
 	OwnMsg    = "0"
 	NormalMsg = "1"
+	NoticeMsg = "2"
 	EventMsg  = "9"
 )
 
