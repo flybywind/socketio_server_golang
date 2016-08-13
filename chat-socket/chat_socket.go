@@ -41,36 +41,36 @@ var (
 
 type roomSocket struct {
 	token   string
-	name    RoomId
+	id      RoomId
 	members map[ChatId]*ChatConn
 	msgbox  map[ChatId]time.Time
 }
 type ChatConn struct {
 	con            *websocket.Conn
-	name           ChatId
+	id             ChatId
 	belongRoom     RoomId
 	ownRoom        bool
 	leaveRoom      bool
 	event_handlers map[string]func(*ChatConn, *Msg)
 }
 
-func createRoom(name RoomId, token string) (*roomSocket, error) {
-	room, exists := rooms[name]
+func createRoom(id RoomId, token string) (*roomSocket, error) {
+	room, exists := rooms[id]
 	if exists {
-		return nil, fmt.Errorf("room [%s] exists", name)
+		return nil, fmt.Errorf("room [%s] exists", id)
 	}
 	room = &roomSocket{
-		token, name,
+		token, id,
 		map[ChatId]*ChatConn{},
 		map[ChatId]time.Time{},
 	}
 
-	rooms[name] = room
-	log.Println("create room:", name)
+	rooms[id] = room
+	log.Println("create room:", id)
 	return room, nil
 }
-func findRoom(name RoomId) *roomSocket {
-	room, exists := rooms[name]
+func findRoom(id RoomId) *roomSocket {
+	room, exists := rooms[id]
 	if exists {
 		return room
 	} else {
@@ -83,7 +83,7 @@ func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 	if err := json.NewEncoder(buf).Encode(msg); err == nil {
 		for _, conn := range r.members {
 			if !conn.leaveRoom {
-				if conn.Name() == fromChat {
+				if conn.Id() == fromChat {
 					msg.Type = OwnMsg
 					// 如果指定为长度为buf.Len()的[]byte，会出现乱码
 					buf2 := bytes.NewBuffer(nil)
@@ -95,14 +95,14 @@ func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 				} else {
 					return conn.con.WriteMessage(websocket.TextMessage, buf.Bytes())
 				}
-				log.Println("broadcast to user:", conn.Name())
+				log.Println("broadcast to user:", conn.Id())
 			} else {
 				now := time.Now()
-				if _, exists := r.msgbox[conn.name]; !exists {
-					r.msgbox[conn.name] = now
+				if _, exists := r.msgbox[conn.id]; !exists {
+					r.msgbox[conn.id] = now
 				}
 				// TODO: get db to store messages
-				log.Println("user:", conn.Name(), "has leaved")
+				log.Println("user:", conn.Id(), "has leaved")
 			}
 		}
 	} else {
@@ -112,18 +112,16 @@ func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 }
 
 func (r *roomSocket) addConn(c *ChatConn) {
-	if conn, existsbefore := r.members[c.name]; existsbefore {
+	if conn, existsbefore := r.members[c.id]; existsbefore {
 		c.ownRoom = conn.ownRoom
 		// TODO: retreive older messages in msgbox
-		delete(r.msgbox, c.name)
+		delete(r.msgbox, c.id)
 	}
 
-	r.members[c.name] = c
+	log.Println("add user:", c.id, "in room:", r.id)
+	r.members[c.id] = c
 }
 
-func (c *ChatConn) Name() ChatId {
-	return c.name
-}
 func (c *ChatConn) BroadCast(msg Msg) error {
 	roomSocket := findRoom(c.belongRoom)
 
@@ -131,16 +129,26 @@ func (c *ChatConn) BroadCast(msg Msg) error {
 		return RoomNotExists(c.belongRoom)
 	}
 
-	return roomSocket.broadCast(c.name, msg)
+	return roomSocket.broadCast(c.id, msg)
 }
 func (c *ChatConn) Active() {
 	c.con.SetReadDeadline(time.Time{})
 }
 
-func (c *ChatConn) SetName(name ChatId) {
-	c.name = name
+func (c *ChatConn) Id() ChatId {
+	return c.id
+}
+func (c *ChatConn) SetId(id ChatId) {
+	c.id = id
+}
+
+func (c *ChatConn) HasId() bool {
+	return (len(string(c.id)) > 0)
 }
 func (c *ChatConn) JoinRoom(room RoomId, token string) error {
+	if !c.HasId() {
+		panic("haven't set ID on chat before join room")
+	}
 	roomSocket := findRoom(room)
 
 	if roomSocket != nil {
