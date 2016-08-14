@@ -81,8 +81,11 @@ func findRoom(id RoomId) *roomSocket {
 func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 	buf := bytes.NewBuffer(nil)
 	if err := json.NewEncoder(buf).Encode(msg); err == nil {
+		var success int = 0
+		log.Println("broadcastting in room:", r.id, r.members)
 		for _, conn := range r.members {
 			if !conn.leaveRoom {
+				log.Println("broadcast to user:", conn.Id())
 				if conn.Id() == fromChat {
 					msg.Type = OwnMsg
 					// 如果指定为长度为buf.Len()的[]byte，会出现乱码
@@ -91,11 +94,10 @@ func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 					if err != nil {
 						return err
 					}
-					return conn.con.WriteMessage(websocket.TextMessage, buf2.Bytes())
+					err = conn.con.WriteMessage(websocket.TextMessage, buf2.Bytes())
 				} else {
-					return conn.con.WriteMessage(websocket.TextMessage, buf.Bytes())
+					err = conn.con.WriteMessage(websocket.TextMessage, buf.Bytes())
 				}
-				log.Println("broadcast to user:", conn.Id())
 			} else {
 				now := time.Now()
 				if _, exists := r.msgbox[conn.id]; !exists {
@@ -104,6 +106,12 @@ func (r *roomSocket) broadCast(fromChat ChatId, msg Msg) error {
 				// TODO: get db to store messages
 				log.Println("user:", conn.Id(), "has leaved")
 			}
+			if err == nil {
+				success++
+			}
+		}
+		if success == 0 {
+			return fmt.Errorf("broadcast all failed")
 		}
 	} else {
 		return err

@@ -78,10 +78,10 @@ ChatSocket.prototype.On = function(evt_name, callback) {
     self.user_evt_handler[evt_name] = callback;
   }
 }
-ChatSocket.prototype.BroadCast = function(msg) {
+ChatSocket.prototype.BroadCast = function(text) {
   var msg = new Msg();
   msg.EventName = "BroadCast";
-  msg.Content = msg;
+  msg.Content = text;
   msg.Type = NormalMsg;
   this.ws.send(msg.toJson());
 }
