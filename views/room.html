@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+
+<header>
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="/stylesheets/style.css">
+</header>
+
+<body>
+    <header id="banner">
+        <h1>{{.Title}}-[{{.Room}}]{{.User}}</h1>
+    </header>
+    <h2 class="room">Chat Room </h2>
+    <section id="chatroom">
+        <div id="messages"></div>
+    </section>
+    <script>
+        var _user = "{{.User}}";
+        var _room = "{{.Room}}";
+    </script>
+    <footer>
+        <div class="entry-area">
+            <input id="message" placeholder="Enter your message here">
+            <input id="send" type="button" value="Send">
+        </div>
+        <div class="footer">Hope you enjoy!</div>
+    </footer>
+    <script src="/javascripts/lib/jquery/dist/jquery.js"></script>
+    <script type="text/javascript" src="/javascripts/chat.js"></script>
+</body>
+</html>

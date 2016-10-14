@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<header>
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="/stylesheets/style.css">
+</header>
+
+<body>
+    <header id="banner">
+        <h1>{{.Title}}</h1>
+    </header>
+    <section>
+        <div class="user_info">
+            <div class="field">
+                <label><span>名字</span>
+                    <input placeholder="Enter your name here" class="name">
+                </label>
+            </div>
+            <div class="field">
+                <label><span>房间</span>
+                    <input placeholder="Enter your room name here" class="room">
+                </label>
+            </div>
+            <div class="field">
+                <button class="enter">进入</button>
+            </div>
+        </div>
+    </section>
+    <script src="/javascripts/lib/jquery/dist/jquery.js"></script>
+    <script type="text/javascript" src="/javascripts/socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="/javascripts/entry.js"></script>
+</body>
+</html>
